@@ -878,7 +878,7 @@ version = "0.10.7"
 
 [[deps.UNet]]
 deps = ["ChainRulesCore", "Distributions", "Flux", "Random", "StatsBase", "Test"]
-git-tree-sha1 = "af2e422d5b1c063913776cc3cd112b96ef5bf056"
+git-tree-sha1 = "ef19dec4a0dd8a238a06b9ef7491c299b1d31da6"
 repo-rev = "fix-compat"
 repo-url = "https://github.com/mloubout/UNet.jl"
 uuid = "0d73aaa9-994a-4556-95d0-da67cb772a03"

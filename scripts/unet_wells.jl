@@ -46,10 +46,6 @@ function get_cm_l2_ssim(G, Xs_batch, Y_batch; device=gpu, num_samples=1)
 	return l2_total / num_test, ssim_total / num_test
 end
 
-# Plotting configs
-save_net_path = "/slimdata/rafaeldata/savednets_krig_hint2"
-plot_path = "/slimdata/rafaeldata/plots/unsuper_krig/unet-wells"
-
 # Training hyperparameters 
 device = gpu
 
@@ -60,31 +56,39 @@ batch_size   = 8#
 n_epochs     = 800
 
 save_every   = 100
-plot_every   = 50
+plot_every   = 5
 
+# Define data directory CHANGE TO YOUR PATH
+save_net_path = "/slimdata/rafaeldata/savednets_krig_hint2"
+plot_path = "/slimdata/rafaeldata/plots/unsuper_krig/unet-wells"
 data_path = "/slimdata/rafaeldata/fwiuq_eod/rtms_normalized.jld2"
+
+if !isfile(data_path)
+println("downloading")
+   run(`wget "https://www.dropbox.com/scl/fi/htnw7io4xe6vdedtex23m/rtms_normalized.jld2?rlkey=dtb2hqoyt6vx5ypyfqutwcm6v&dl=0" -q -O $data_path`)
+end
+
 m_train = JLD2.jldopen(data_path, "r")["m_train"];
 m_train = m_train ./ 5f0
 
-
 #resize to jesus dataset just to confirm size works
-# using Images
-# Xs = zeros(Float32,600,200,1,size(m_train)[end])
-# for i in 1:size(m_train)[end]
-# 	Xs[:,:,:,i] = imresize(m_train[:,:,1,i], (600, 200))
-# end
+using Images
+Xs = zeros(Float32,600,200,1,size(m_train)[end])
+for i in 1:size(m_train)[end]
+	Xs[:,:,:,i] = imresize(m_train[:,:,1,i], (600, 200))
+end
 
 # training indexes 
 i_train = 400
 
 Random.seed!(122);
-n_wells = 8
+n_wells = 7
 width_well = 3
 noise_wells = 0.0
 min_dist = 25
 Xs_wells = get_batch_well(Xs + noise_wells.*randn(size(Xs)); width_well = width_well, n_wells=n_wells, min_dist = min_dist );
 
-inds_train = range(1, 1000; step=div(1000, i_train))
+inds_train = range(1, 1000; step=div(1000, i_train)) #just to get more variability in datset. Can take away
 X_train  = Xs_wells[:,:,:,inds_train]
 Xs = Xs[:,:,:,inds_train]
 
@@ -119,21 +123,25 @@ chunk(arr, n) = [arr[i:min(i + n - 1, end)] for i in 1:n:length(arr)]
 #probability of adding extra corruption
 corr_prob = 0.25
 corr_prob_pixel = 0.25
+
+#size of random data aug crops
 n_x_tr = 256
-n_y_tr = 128
+n_y_tr = 192
+
 for e=1:n_epochs # epoch loop
 	idx_e = reshape(randperm(n_train), batch_size, n_batches) 
     for b = 1:n_batches # batch loop
     	@time begin
 
 		Y_pre = X_train[:, :, :, idx_e[:,b]] 
-		Y = zeros(Float32,n_x_tr,ny,1,batch_size);
-		Y_corr = zeros(Float32,n_x_tr,ny,1,batch_size);
+		Y = zeros(Float32,n_x_tr,n_y_tr,1,batch_size);
+		Y_corr = zeros(Float32,n_x_tr,n_y_tr,1,batch_size);
 
 		for i in 1:batch_size
 			ran_x = rand(collect(1:(nx-n_x_tr)))
-	    	Y[:,:,:,i:i] = Y_pre[ran_x:ran_x+n_x_tr-1,:,:,i:i]
-	    	Y_corr[:,:,:,i:i] = Y_pre[ran_x:ran_x+n_x_tr-1,:,:,i:i]
+			ran_y = rand(collect(1:(ny-n_y_tr)))
+	    	Y[:,:,:,i:i] = Y_pre[ran_x:ran_x+n_x_tr-1,ran_y:ran_y+n_y_tr-1,:,i:i]
+	    	Y_corr[:,:,:,i:i] = Y_pre[ran_x:ran_x+n_x_tr-1,ran_y:ran_y+n_y_tr-1,:,i:i]
 			if rand() > 0.5
 	    		Y[:,:,:,i:i] = Y[end:-1:1,:,:,i:i]
 	    		Y_corr[:,:,:,i:i] = Y_corr[end:-1:1,:,:,i:i]
@@ -154,7 +162,8 @@ for e=1:n_epochs # epoch loop
 			  	end
 			end
 	    end
-	  	f, back = Zygote.pullback(() -> loss_unet(Y|> device, Y_corr|> device;), ps)
+
+	  	f, back = Zygote.pullback(() -> loss_unet(Y|> device, Y_corr|> device;), ps);
     
 		gs = back(one(f))
 		Flux.update!(opt, ps, gs)
@@ -233,11 +242,11 @@ for e=1:n_epochs # epoch loop
 		end
 	end
 
-		#save params every 4 epochs
+	#save params every 4 epochs
     if(mod(e,save_every)==0) 
     	 #Saving parameters and logs
      	unet_cpu = unet |> cpu;
-		save_dict = @strdict  unet_lev unet_cpu nx  n_train e  lr   loss  l2_cm ssim loss_test  l2_cm_test ssim_test batch_size; 
+		save_dict = @strdict  unet_lev unet_cpu nx  n_train e  lr n_x_tr n_y_tr  loss  l2_cm ssim loss_test  l2_cm_test ssim_test batch_size; 
 		@tagsave(
 			joinpath(save_net_path, savename(save_dict, "bson"; digits=6)),
 			save_dict;

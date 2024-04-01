@@ -1,12 +1,9 @@
 #module load Julia/1.8/5; salloc -A rafael -t00:80:00 --gres=gpu:1 --mem-per-cpu=20G srun --pty julia 
-#module load Julia/1.8/5; salloc -A rafael -t00:80:00 --partition=cpu --mem-per-cpu=15G srun --pty julia 
 
 using DrWatson
 @quickactivate "GenerativeGeostats.jl"
 import Pkg; Pkg.instantiate()
 
-#using Pkg;Pkg.add(PackageSpec(url="https://github.com/mloubout/UNet.jl", rev="remove-bad-layes")) #SUPER SMOOTH prior
-#using Pkg;Pkg.add(PackageSpec(url="https://github.com/mloubout/UNet.jl", rev="no_tanh"))
 #using Pkg;Pkg.add(PackageSpec(url="https://github.com/mloubout/UNet.jl", rev="fix-compat"))
 using Flux, UNet, Zygote
 using PyPlot
@@ -73,6 +70,12 @@ plot_every  = 10
 
 # Get data 
 data_path = "/slimdata/rafaeldata/fwiuq_eod/rtms_normalized.jld2"
+
+if !isfile(data_path)
+	println("downloading")
+	run(`wget "https://www.dropbox.com/scl/fi/htnw7io4xe6vdedtex23m/rtms_normalized.jld2?rlkey=dtb2hqoyt6vx5ypyfqutwcm6v&dl=0" -q -O $data_path`)
+end
+
 m_train = JLD2.jldopen(data_path, "r")["m_train"];
 rtm_train = JLD2.jldopen(data_path, "r")["rtm_train"];
 
