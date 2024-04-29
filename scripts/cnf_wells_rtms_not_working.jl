@@ -106,10 +106,9 @@ plot_every   = 2
 n_condmean   = batch_size
 
 
-data_path = "/slimdata/rafaeldata/fwiuq_eod/rtms_oed.jld2"
+data_path = "/slimdata/rafaeldata/fwiuq_eod/rtms_normalized.jld2"
 m_train = JLD2.jldopen(data_path, "r")["m_train"];
-grad_train = JLD2.jldopen(data_path, "r")["grad_train"];
-grad_train = mean(grad_train;dims=3)
+grad_train = JLD2.jldopen(data_path, "r")["rtm_train"];
 
 
 nx = 256
